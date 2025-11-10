@@ -1,0 +1,166 @@
+{
+  "cohortType": "college",
+  "generatedAt": "2025-11-10T09:07:16Z",
+  "grade": "I",
+  "maxScore": 50,
+  "notes": "Regulations: 2022. Periodical Test 1 - October 2025. Semester I. Degree \u0026 Branch: B.E./B.Tech. \u0026 CS,AL. Time: 1:30 hrs.",
+  "questions": [
+    {
+      "questionNumber": "A1(i)",
+      "answer": "The value of Σ is 15 (option c)",
+      "maxScore": 1
+    },
+    {
+      "questionNumber": "A1(ii)",
+      "answer": "The value of Σ is 55 (option d)",
+      "maxScore": 1
+    },
+    {
+      "questionNumber": "A1(iii)",
+      "answer": "Use least squares to find a and b for y = ax + b. The normal equations are given. Solve for a and b.",
+      "maxScore": 4
+    },
+    {
+      "questionNumber": "A1(iv)",
+      "answer": "Use least squares to find a and b for y = ax + b. The normal equations are given. Solve for a and b.",
+      "maxScore": 4
+    },
+    {
+      "questionNumber": "A2(i)",
+      "answer": "The determinant of A is 6 (option a)",
+      "maxScore": 1
+    },
+    {
+      "questionNumber": "A2(ii)",
+      "answer": "The sum of the Eigen values of the matrix A^2 is 10 (option a)",
+      "maxScore": 1
+    },
+    {
+      "questionNumber": "A2(iii)",
+      "answer": "Solve the system of equations al1 + bl2 = [2,8] A, where l1 = [4,1] A and l2 = [-2,2] A to find a and b.",
+      "maxScore": 3
+    },
+    {
+      "questionNumber": "A2(iv)",
+      "answer": "Find the Eigen values and Eigen vectors of the given matrix. The transportation hub is determined by the highest Eigen value and corresponding Eigen vector.",
+      "maxScore": 5
+    },
+    {
+      "questionNumber": "A3(i)",
+      "answer": "The value of y at x = -1 is 50 (option a)",
+      "maxScore": 1
+    },
+    {
+      "questionNumber": "A3(ii)",
+      "answer": "Calculate the average value of Y using the given data.",
+      "maxScore": 3
+    },
+    {
+      "questionNumber": "A3(iii)",
+      "answer": "Compute the regression equation using the given formula and bxy = -0.5.",
+      "maxScore": 1
+    },
+    {
+      "questionNumber": "A3(iv)",
+      "answer": "Compute the regression equation using the given formula and byx = 0.01. Predict the crop yield for 180 and 340 liters/ha.",
+      "maxScore": 5
+    },
+    {
+      "questionNumber": "B1(i)",
+      "answer": "Calculate Σxy using the given data.",
+      "maxScore": 1
+    },
+    {
+      "questionNumber": "B1(ii)",
+      "answer": "The parabola opens upward (option a)",
+      "maxScore": 1
+    },
+    {
+      "questionNumber": "B1(iii)",
+      "answer": "Find the polynomial y = ax^2 + bx + c using the normal equations.",
+      "maxScore": 3
+    },
+    {
+      "questionNumber": "B1(iv)",
+      "answer": "a) Find the x-intercepts and y-intercept of the profit function.\nb) Find the vertex of the profit function and interpret its meaning.\nc) Sketch the profit function.",
+      "maxScore": 5
+    },
+    {
+      "questionNumber": "B2(i)",
+      "answer": "The quadratic form corresponds to the matrix [2 -3; -3 3]",
+      "maxScore": 1
+    },
+    {
+      "questionNumber": "B2(ii)",
+      "answer": "The index of system's energy is 2 (option c)",
+      "maxScore": 1
+    },
+    {
+      "questionNumber": "B2(iii)",
+      "answer": "a) Compute the eigenvalues of the system's stability matrix.\nb) Construct the canonical form of the stability matrix.\nc) Find the rank and nature of the system's stability.",
+      "maxScore": 4
+    },
+    {
+      "questionNumber": "B2(iv)",
+      "answer": "a) Convert the quadratic form into matrix form.\nb) Find the eigenvalues of the matrix and interpret their relation to the nature of the motion.",
+      "maxScore": 4
+    },
+    {
+      "questionNumber": "B3(i)",
+      "answer": "Partial definite (option d)",
+      "maxScore": 1
+    },
+    {
+      "questionNumber": "B3(ii)",
+      "answer": "A^-1 = A^T",
+      "maxScore": 1
+    },
+    {
+      "questionNumber": "B3(iii)",
+      "answer": "(A^-1)^-1 (option d)",
+      "maxScore": 1
+    },
+    {
+      "questionNumber": "B3(iv)",
+      "answer": "a) Convert the quadratic form into matrix form.\nb) Find the eigenvalues of the matrix and interpret their relation to the nature of the motion.",
+      "maxScore": 4
+    },
+    {
+      "questionNumber": "B4(iv)",
+      "answer": "a) Find the Eigen vectors corresponding to the eigen value 2.\nb) Diagonalize the matrix A.",
+      "maxScore": 4
+    },
+    {
+      "questionNumber": "C1(i)",
+      "answer": "4 (option c)",
+      "maxScore": 1
+    },
+    {
+      "questionNumber": "C1(ii)",
+      "answer": "Frame the normal equations related to the plant's height H and time t using the logarithmic transformation.",
+      "maxScore": 4
+    },
+    {
+      "questionNumber": "C2(i)",
+      "answer": "a=2.5, b=10 (option c)",
+      "maxScore": 1
+    },
+    {
+      "questionNumber": "C2(ii)",
+      "answer": "Fit the Normal equations of the third degree polynomial to the given data.",
+      "maxScore": 4
+    },
+    {
+      "questionNumber": "C3(i)",
+      "answer": "y increases more slowly than x (option c)",
+      "maxScore": 1
+    },
+    {
+      "questionNumber": "C3(ii)",
+      "answer": "Find the value of a and b and fit the power curve using the given normal equations.",
+      "maxScore": 4
+    }
+  ],
+  "subject": "Mathematics",
+  "title": "Engineering Mathematics I"
+}

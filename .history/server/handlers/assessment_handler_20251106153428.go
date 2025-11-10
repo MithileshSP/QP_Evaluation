@@ -1,0 +1,254 @@
+package handlers
+
+import (
+	"context"
+	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"log"
+	"mime/multipart"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+
+	"github.com/example/clg-qps/server/models"
+	"github.com/example/clg-qps/server/services"
+)
+
+const currentAssessmentSlug = "current"
+
+// AssessmentHandler manages the question paper and answer key lifecycle.
+type AssessmentHandler struct {
+	assessments *mongo.Collection
+}
+
+// NewAssessmentHandler constructs an AssessmentHandler.
+func NewAssessmentHandler(db *mongo.Database) *AssessmentHandler {
+	collection := db.Collection("assessments")
+	ensureAssessmentIndexes(collection)
+	return &AssessmentHandler{assessments: collection}
+}
+
+func ensureAssessmentIndexes(col *mongo.Collection) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	index := mongo.IndexModel{
+		Keys:    bson.D{{Key: "slug", Value: 1}},
+		Options: options.Index().SetUnique(true).SetName("slug_unique"),
+	}
+	if _, err := col.Indexes().CreateOne(ctx, index); err != nil {
+		// index creation failure should not crash the server; log at debug level if necessary
+		log.Printf("warning: unable to ensure assessment index: %v", err)
+	}
+}
+
+// GetCurrentAssessment returns the stored question paper and answer key metadata.
+func (h *AssessmentHandler) GetCurrentAssessment(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	assessment, err := h.fetchAssessment(ctx, currentAssessmentSlug)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		c.JSON(http.StatusOK, gin.H{"slug": currentAssessmentSlug})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "unable to load assessment"})
+		return
+	}
+
+	c.JSON(http.StatusOK, assessment)
+}
+
+// UpsertCurrentAssessment accepts updated metadata and optional replacement files.
+func (h *AssessmentHandler) UpsertCurrentAssessment(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Minute)
+	defer cancel()
+
+	existing, err := h.fetchAssessment(ctx, currentAssessmentSlug)
+	if err != nil && !errors.Is(err, mongo.ErrNoDocuments) {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "unable to load existing assessment"})
+		return
+	}
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		existing = models.Assessment{}
+	}
+
+	file, err := c.FormFile("questionPaper")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "questionPaper file is required"})
+		return
+	}
+
+	uploadsDir := os.Getenv("UPLOADS_DIR")
+	if uploadsDir == "" {
+		uploadsDir = "uploads"
+	}
+	assessmentDir := filepath.Join(uploadsDir, "assessments", currentAssessmentSlug)
+	if err := os.MkdirAll(assessmentDir, 0o755); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "unable to prepare storage"})
+		return
+	}
+
+	storedQuestion, storeErr := storeAssessmentFile(c, file, assessmentDir)
+	if storeErr != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": storeErr.Error()})
+		return
+	}
+	cleanupQuestion := true
+	defer func() {
+		if cleanupQuestion {
+			removeIfExists(storedQuestion.StoredPath)
+		}
+	}()
+
+	analysis, err := h.analyzeQuestionPaper(ctx, storedQuestion)
+	if err != nil {
+		var analysisErr *services.AnalysisError
+		if errors.As(err, &analysisErr) {
+			message := strings.TrimSpace(analysisErr.Body)
+			if message == "" {
+				message = "analysis service returned an error"
+			}
+			c.JSON(http.StatusBadGateway, gin.H{"error": message})
+			return
+		}
+		if errors.Is(err, context.DeadlineExceeded) {
+			c.JSON(http.StatusGatewayTimeout, gin.H{"error": "question paper analysis timed out"})
+			return
+		}
+		c.JSON(http.StatusBadGateway, gin.H{"error": "unable to analyze question paper"})
+		return
+	}
+
+	answerKeyMeta, err := persistGeneratedAnswerKey(assessmentDir, analysis)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "unable to store generated answer key"})
+		return
+	}
+	cleanupAnswer := true
+	defer func() {
+		if cleanupAnswer {
+			removeIfExists(answerKeyMeta.StoredPath)
+		}
+	}()
+
+	title := firstNonEmpty(
+		analysis.Title,
+		existing.Title,
+		strings.TrimSuffix(storedQuestion.FileName, filepath.Ext(storedQuestion.FileName)),
+		"Assessment",
+	)
+	subject := firstNonEmpty(analysis.Subject, existing.Subject, "General Studies")
+	cohortType := canonicalCohortType(analysis.CohortType, existing.CohortType)
+	grade := firstNonEmpty(analysis.Grade, existing.Grade)
+	if grade == "" {
+		grade = defaultGradeFor(cohortType)
+	}
+
+	maxScore := analysis.MaxScore
+	if maxScore <= 0 {
+		maxScore = sumQuestionMaxScores(analysis.Questions)
+	}
+	if maxScore <= 0 && existing.MaxScore > 0 {
+		maxScore = existing.MaxScore
+	}
+	if maxScore <= 0 {
+		maxScore = 100
+	}
+
+	now := time.Now().UTC()
+	setFields := bson.M{
+		"title":         title,
+		"subject":       subject,
+		"cohort_type":   cohortType,
+		"grade":         grade,
+		"max_score":     maxScore,
+		"question_paper": storedQuestion,
+		"answer_key":     answerKeyMeta,
+		"updated_at":    now,
+	}
+
+	update := bson.M{
+		"$set": setFields,
+		"$setOnInsert": bson.M{
+			"_id":        primitive.NewObjectID(),
+			"slug":       currentAssessmentSlug,
+			"created_at": now,
+		},
+	}
+
+	_, err = h.assessments.UpdateOne(ctx, bson.M{"slug": currentAssessmentSlug}, update, options.Update().SetUpsert(true))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "unable to persist assessment"})
+		return
+	}
+
+	cleanupQuestion = false
+	cleanupAnswer = false
+	if existing.QuestionPaper != nil {
+		removeIfExists(existing.QuestionPaper.StoredPath)
+	}
+	if existing.AnswerKey != nil {
+		removeIfExists(existing.AnswerKey.StoredPath)
+	}
+
+	ctxFetch, cancelFetch := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelFetch()
+	var updated models.Assessment
+	if err := h.assessments.FindOne(ctxFetch, bson.M{"slug": currentAssessmentSlug}).Decode(&updated); err != nil {
+		updated = models.Assessment{
+			Slug:          currentAssessmentSlug,
+			Title:         title,
+			Subject:       subject,
+			CohortType:    cohortType,
+			Grade:         grade,
+			MaxScore:      maxScore,
+			QuestionPaper: storedQuestion,
+			AnswerKey:     answerKeyMeta,
+			UpdatedAt:     now,
+		}
+	}
+
+	c.JSON(http.StatusOK, updated)
+}
+
+func (h *AssessmentHandler) fetchAssessment(ctx context.Context, slug string) (models.Assessment, error) {
+	var assessment models.Assessment
+	err := h.assessments.FindOne(ctx, bson.M{"slug": slug}).Decode(&assessment)
+	return assessment, err
+}
+
+func storeAssessmentFile(c *gin.Context, file *multipart.FileHeader, dir string) (*models.AssetMeta, error) {
+	safeName := fmt.Sprintf("%d_%s", time.Now().UnixNano(), sanitizeFileName(file.Filename))
+	storedPath := filepath.Join(dir, safeName)
+	if err := c.SaveUploadedFile(file, storedPath); err != nil {
+		return nil, fmt.Errorf("unable to store file: %w", err)
+	}
+	return &models.AssetMeta{
+		FileName:   file.Filename,
+		StoredPath: storedPath,
+		MimeType:   file.Header.Get("Content-Type"),
+		Size:       file.Size,
+		UploadedAt: time.Now().UTC(),
+	}, nil
+}
+
+func removeIfExists(path string) {
+	if path == "" {
+		return
+	}
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		log.Printf("warning: unable to remove file %s: %v", path, err)
+	}
+}
